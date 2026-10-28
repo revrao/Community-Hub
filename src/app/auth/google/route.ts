@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       {
         httpOnly: true,
         sameSite: "lax",
-        secure: request.nextUrl.protocol === "https:",
+        secure: origin.startsWith("https://"),
         path: "/auth/callback",
         maxAge: 600,
       },

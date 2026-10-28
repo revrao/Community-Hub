@@ -1,0 +1,6 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Netlify automatically installs its current OpenNext adapter.
+# Configure application environment variables in Netlify, never in this file.

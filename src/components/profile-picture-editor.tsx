@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { useSession } from "./session-provider";
 import { Avatar } from "./avatar";
 import { validateAvatarFile } from "@/lib/avatars";
+import { prepareAvatarUpload } from "@/lib/avatar-upload";
 export function ProfilePictureEditor() {
   const { profile, avatarUrl, refresh } = useSession();
   const input = useRef<HTMLInputElement>(null);
@@ -22,7 +23,7 @@ export function ProfilePictureEditor() {
     setBusy(true);
     try {
       const body = file ? new FormData() : undefined;
-      if (file) body!.set("photo", file);
+      if (file) body!.set("photo", await prepareAvatarUpload(file));
       const result = await fetch("/api/profile/avatar", {
         method: file ? "POST" : "DELETE",
         body,
@@ -42,9 +43,12 @@ export function ProfilePictureEditor() {
             ? " The old image file could not be removed; your profile change was saved."
             : ""),
       );
-    } catch {
+    } catch (error) {
       setError(
-        "Unable to confirm the change. Refresh your profile before trying again.",
+        error instanceof Error &&
+          error.message.startsWith("This image could not be prepared")
+          ? error.message
+          : "Unable to confirm the change. Refresh your profile before trying again.",
       );
     } finally {
       setBusy(false);

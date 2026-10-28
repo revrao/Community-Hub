@@ -43,3 +43,7 @@ The hosted browser session contains one confirmed administrator. A positive orga
 The embedded SQL harness simulates Supabase identities; it is not a replacement for hosted JWT/session-expiry tests or concurrent multi-connection load testing. Live anonymous privileges were checked separately. Map-center discovery was tested; requesting the user's precise device location was intentionally left as an opt-in user action. Email delivery/SMTP, origin allowlists and public-pilot operational settings remain in the owner's Supabase/Mapbox dashboards.
 
 No migrations beyond the four applied files are currently required. Testing did not deploy the website, reset the database, or delete real data. Publishing code is separate from database changes and website deployment.
+
+## Updated attendance acceptance
+
+The owner has reported successful completion of the two-account attendance verification test. This supersedes the outstanding two-account attendance step above. Recheck the journey on the deployed HTTPS site during pilot smoke testing. Other verification limitations are not automatically resolved by this report.

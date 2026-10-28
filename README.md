@@ -38,3 +38,5 @@ Device location is used only in browser memory for nearby discovery. Event addre
 GitHub pushes and website deployments require the owner’s approval.
 
 Account dropdown, private profile-photo storage, and Google OAuth setup are documented in [profile photos and Google sign-in](docs/PROFILE_PHOTOS_GOOGLE_SETUP.md). Google credentials belong only in the Supabase provider configuration.
+
+For the initial Netlify pilot, see [deployment settings and manual setup](docs/NETLIFY_DEPLOYMENT.md). The repository is prepared for deployment; dashboard configuration and deployment require owner approval.

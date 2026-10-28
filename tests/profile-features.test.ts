@@ -168,3 +168,98 @@ test("same-origin checks accept the public local Host and reject cross-site requ
   assert.equal(sameOrigin(request("null")), null);
   assert.equal(sameOrigin(request("http://127.0.0.1:3000/path")), null);
 });
+
+test("production origin stays canonical behind an internal HTTP proxy", async () => {
+  const { requestOrigin, sameOrigin } =
+    await import("../src/lib/request-origin.ts");
+  const previous = process.env.APP_ORIGIN;
+  try {
+    process.env.APP_ORIGIN = "https://communityhub.example";
+    const request = new Request("http://internal-function/auth/callback", {
+      headers: {
+        host: "internal-function",
+        origin: "https://communityhub.example",
+      },
+    });
+    assert.equal(requestOrigin(request), "https://communityhub.example");
+    assert.equal(sameOrigin(request), "https://communityhub.example");
+    assert.equal(
+      sameOrigin(
+        new Request("http://internal-function/api/profile/avatar", {
+          headers: { origin: "https://untrusted.example" },
+        }),
+      ),
+      null,
+    );
+    process.env.APP_ORIGIN = "https://communityhub.example/extra";
+    assert.throws(() => requestOrigin(request), /APP_ORIGIN/);
+  } finally {
+    if (previous === undefined) delete process.env.APP_ORIGIN;
+    else process.env.APP_ORIGIN = previous;
+  }
+});
+
+test("large valid photos are reduced below the serverless request budget; small photos pass through", async () => {
+  const { prepareAvatarUpload, MAX_AVATAR_REQUEST_BYTES } =
+    await import("../src/lib/avatar-upload.ts");
+  const small = new File(["pixels"], "test.png", { type: "image/png" });
+  assert.equal(await prepareAvatarUpload(small), small);
+  const bitmapDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "createImageBitmap",
+  );
+  const documentDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "document",
+  );
+  let closed = false;
+  try {
+    Object.defineProperty(globalThis, "createImageBitmap", {
+      configurable: true,
+      value: async () => ({
+        width: 2000,
+        height: 1000,
+        close: () => {
+          closed = true;
+        },
+      }),
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        createElement: () => ({
+          width: 0,
+          height: 0,
+          getContext: () => ({ drawImage: () => {} }),
+          toBlob: (callback: (value: Blob) => void) =>
+            callback(new Blob(["normalized"], { type: "image/webp" })),
+        }),
+      },
+    });
+    const large = new File(
+      [new Uint8Array(MAX_AVATAR_REQUEST_BYTES + 1)],
+      "large.png",
+      { type: "image/png" },
+    );
+    const prepared = await prepareAvatarUpload(large);
+    assert.equal(prepared.type, "image/webp");
+    assert.ok(prepared.size < MAX_AVATAR_REQUEST_BYTES);
+    assert.equal(closed, true);
+    await assert.rejects(
+      () =>
+        prepareAvatarUpload(
+          new File([new Uint8Array(MAX_AVATAR_BYTES + 1)], "too-large.png", {
+            type: "image/png",
+          }),
+        ),
+      /5 MB/,
+    );
+  } finally {
+    if (bitmapDescriptor)
+      Object.defineProperty(globalThis, "createImageBitmap", bitmapDescriptor);
+    else Reflect.deleteProperty(globalThis, "createImageBitmap");
+    if (documentDescriptor)
+      Object.defineProperty(globalThis, "document", documentDescriptor);
+    else Reflect.deleteProperty(globalThis, "document");
+  }
+});

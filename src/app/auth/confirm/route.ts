@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { serverClient } from "@/lib/supabase/server";
 import { safeNext } from "@/lib/auth";
+import { requestOrigin } from "@/lib/request-origin";
 export async function GET(request: NextRequest) {
   const token_hash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
@@ -11,11 +12,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           safeNext(request.nextUrl.searchParams.get("next")),
-          request.url,
+          requestOrigin(request),
         ),
       );
   }
   return NextResponse.redirect(
-    new URL("/login?error=confirmation", request.url),
+    new URL("/login?error=confirmation", requestOrigin(request)),
   );
 }
