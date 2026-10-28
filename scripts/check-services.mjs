@@ -37,18 +37,4 @@ if (url && key) {
     }
   }
 }
-if (mapToken) {
-  try {
-    const res = await fetch(
-      `https://api.mapbox.com/styles/v1/mapbox/streets-v12?access_token=${encodeURIComponent(mapToken)}`,
-      { signal: AbortSignal.timeout(15000) },
-    );
-    console.log(
-      "Mapbox style access: HTTP " +
-        res.status +
-        " (origin restrictions may affect this check)",
-    );
-  } catch {
-    console.log("Mapbox: connection failed");
-  }
-}
+// Mapbox is intentionally not probed: only explicit map viewing should use Map Loads.

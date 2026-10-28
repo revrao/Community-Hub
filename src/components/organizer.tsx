@@ -6,7 +6,7 @@ import { browserClient } from "@/lib/supabase/browser";
 import { type EventRow } from "@/lib/data";
 import { databaseMessage } from "@/lib/auth";
 import { EventLocationPicker } from "./event-location-picker";
-import { validLocation, type EventLocation } from "@/lib/geocoding";
+import { validLocation, type EventLocation } from "@/lib/event-location";
 type Registrant = {
   registration_id: string;
   user_id: string;
@@ -159,7 +159,7 @@ export function Organizer() {
             }
             if (!validLocation(location) || !location.address.trim()) {
               setError(
-                "Choose an address suggestion or a confirmed map location before submitting.",
+                "Enter the public address and confirm its map pin before submitting.",
               );
               return;
             }
