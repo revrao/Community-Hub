@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./ui";
+import { HeaderSearch } from "./header-search";
 import { AccountMenu } from "./account-menu";
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -43,10 +44,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {nav}
           </nav>
           <div className="nav-right">
-            <Link className="topsearch" href="/#search">
-              <Icon name="search" />
-              Search opportunities
-            </Link>
+            <HeaderSearch />
             <AccountMenu />
           </div>
         </div>

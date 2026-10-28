@@ -3,16 +3,16 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "./session-provider";
 import { browserClient } from "@/lib/supabase/browser";
-import { type EventRow, type Coordinates } from "@/lib/data";
+import { type EventRow } from "@/lib/data";
 import { databaseMessage } from "@/lib/auth";
-import { EventMap } from "./event-map";
+import { EventLocationPicker } from "./event-location-picker";
+import { validLocation, type EventLocation } from "@/lib/geocoding";
 type Registrant = {
   registration_id: string;
   user_id: string;
   display_name: string;
   status: string;
 };
-const emptyEvents: never[] = [];
 const localDate = (value: string) => {
   const date = new Date(value);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
@@ -33,27 +33,7 @@ export function Organizer() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
-  const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
-  const [latitudeText, setLatitudeText] = useState("");
-  const [longitudeText, setLongitudeText] = useState("");
-  const chooseLocation = useCallback((point: Coordinates) => {
-    setCoordinates(point);
-    setLatitudeText(String(point.latitude));
-    setLongitudeText(String(point.longitude));
-  }, []);
-  const previewCoordinates = () => {
-    const latitude = Number(latitudeText),
-      longitude = Number(longitudeText);
-    if (
-      latitudeText &&
-      longitudeText &&
-      Number.isFinite(latitude) &&
-      Number.isFinite(longitude) &&
-      Math.abs(latitude) <= 90 &&
-      Math.abs(longitude) <= 180
-    )
-      setCoordinates({ latitude, longitude });
-  };
+  const [location, setLocation] = useState<EventLocation | null>(null);
   const load = useCallback(async () => {
     if (!user) return;
     try {
@@ -126,11 +106,15 @@ export function Organizer() {
     setSelected(null);
     setError("");
     setMessage("");
-    setCoordinates(
-      event ? { latitude: event.latitude, longitude: event.longitude } : null,
+    setLocation(
+      event
+        ? {
+            latitude: event.latitude,
+            longitude: event.longitude,
+            address: event.address,
+          }
+        : null,
     );
-    setLatitudeText(event ? String(event.latitude) : "");
-    setLongitudeText(event ? String(event.longitude) : "");
   };
   return (
     <div className="page">
@@ -162,8 +146,7 @@ export function Organizer() {
           onSubmit={async (e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            const latitude = Number(f.get("latitude")),
-              longitude = Number(f.get("longitude"));
+
             const start = new Date(String(f.get("start"))),
               end = new Date(String(f.get("end")));
             if (
@@ -174,14 +157,9 @@ export function Organizer() {
               setError("Choose an end time after the start time.");
               return;
             }
-            if (
-              !Number.isFinite(latitude) ||
-              !Number.isFinite(longitude) ||
-              Math.abs(latitude) > 90 ||
-              Math.abs(longitude) > 180
-            ) {
+            if (!validLocation(location) || !location.address.trim()) {
               setError(
-                "Choose the event location on the map or enter its coordinates.",
+                "Choose an address suggestion or a confirmed map location before submitting.",
               );
               return;
             }
@@ -196,9 +174,9 @@ export function Organizer() {
                   p_ends_at: new Date(String(f.get("end"))).toISOString(),
                   p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                   p_location_name: String(f.get("place")),
-                  p_address: String(f.get("address")),
-                  p_latitude: latitude,
-                  p_longitude: longitude,
+                  p_address: location.address,
+                  p_latitude: location.latitude,
+                  p_longitude: location.longitude,
                   p_capacity: Number(f.get("capacity")),
                 }),
               "Event submitted for administrator approval. It will be public after approval.",
@@ -292,64 +270,18 @@ export function Organizer() {
             maxLength={160}
             defaultValue={editing?.location_name}
           />
-          <label className="field-label" htmlFor="address">
-            Public event address
-          </label>
-          <input
-            id="address"
-            name="address"
-            required
-            maxLength={300}
-            defaultValue={editing?.address}
+          <EventLocationPicker
+            initial={
+              editing
+                ? {
+                    address: editing.address,
+                    latitude: editing.latitude,
+                    longitude: editing.longitude,
+                  }
+                : null
+            }
+            onChange={setLocation}
           />
-          <p className="small muted about">
-            Click the map to place the event, or enter its coordinates below.
-            Only use the public venue location.
-          </p>
-          <div className="location-map">
-            <EventMap
-              events={emptyEvents}
-              origin={coordinates}
-
-              onPick={chooseLocation}
-            />
-          </div>
-          <div className="two-inputs">
-            <div>
-              <label className="field-label" htmlFor="latitude">
-                Latitude
-              </label>
-              <input
-                id="latitude"
-                name="latitude"
-                type="number"
-                min={-90}
-                max={90}
-                step="any"
-                required
-                value={latitudeText}
-                onChange={(e) => setLatitudeText(e.target.value)}
-                onBlur={previewCoordinates}
-              />
-            </div>
-            <div>
-              <label className="field-label" htmlFor="longitude">
-                Longitude
-              </label>
-              <input
-                id="longitude"
-                name="longitude"
-                type="number"
-                min={-180}
-                max={180}
-                step="any"
-                required
-                value={longitudeText}
-                onChange={(e) => setLongitudeText(e.target.value)}
-                onBlur={previewCoordinates}
-              />
-            </div>
-          </div>
           <div className="row wrap">
             <button
               type="button"

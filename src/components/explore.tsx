@@ -1,13 +1,39 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type Event, type Coordinates, filterEvents } from "@/lib/data";
 import { Category, EventCard, Icon } from "./ui";
 import { EventMap } from "./event-map";
-export function Explore({ events, error }: { events: Event[]; error: string }) {
+export function Explore({
+  events,
+  error,
+  initialQuery = "",
+}: {
+  events: Event[];
+  error: string;
+  initialQuery?: string;
+}) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  useEffect(() => {
+    setQuery(initialQuery);
+    setSelected(null);
+  }, [initialQuery]);
+  useEffect(() => {
+    const sync = () =>
+      setQuery(new URL(window.location.href).searchParams.get("q") ?? "");
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    setSelected(null);
+    const url = new URL(window.location.href);
+    if (value.trim()) url.searchParams.set("q", value);
+    else url.searchParams.delete("q");
+    window.history.replaceState(null, "", url.pathname + url.search);
+  };
   const [types, setTypes] = useState(["volunteer", "event"]);
   const [date, setDate] = useState("any");
   const [distance, setDistance] = useState("any");
@@ -21,7 +47,7 @@ export function Explore({ events, error }: { events: Event[]; error: string }) {
   );
   const event = list.find((e) => e.id === selected);
   const reset = () => {
-    setQuery("");
+    changeQuery("");
     setTypes(["volunteer", "event"]);
     setDate("any");
     setDistance("any");
@@ -71,7 +97,8 @@ export function Explore({ events, error }: { events: Event[]; error: string }) {
             id="search"
             placeholder="Search events or places..."
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            maxLength={200}
+            onChange={(e) => changeQuery(e.target.value)}
           />
         </div>
         <h3>Categories</h3>
@@ -215,7 +242,9 @@ export function Explore({ events, error }: { events: Event[]; error: string }) {
           <div className="empty">
             <p>
               {events.length
-                ? "No opportunities match these filters."
+                ? query.trim()
+                  ? `No events match “${query.trim()}”. Try a title, organizer, category, or location.`
+                  : "No opportunities match these filters."
                 : "No approved upcoming events yet."}
             </p>
             {events.length > 0 && (

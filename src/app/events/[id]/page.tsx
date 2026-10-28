@@ -22,5 +22,5 @@ export default async function Page({
       </div>
     );
   if (!event) notFound();
-  return <EventDetail event={event} />;
+  return <EventDetail key={event.id} event={event} />;
 }

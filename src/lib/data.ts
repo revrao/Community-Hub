@@ -115,7 +115,16 @@ export function filterEvents(
         e.status === "approved" &&
         new Date(e.endsAt) > now &&
         types.includes(e.type) &&
-        [e.title, e.place, e.description, e.address]
+        [
+          e.title,
+          e.place,
+          e.description,
+          e.address,
+          e.organizer,
+          e.type === "volunteer"
+            ? "volunteering volunteer"
+            : "community events community_event",
+        ]
           .join(" ")
           .toLowerCase()
           .includes(query.trim().toLowerCase()) &&
