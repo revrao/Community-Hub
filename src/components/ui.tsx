@@ -51,6 +51,13 @@ export function EventCard({ event }: { event: Event }) {
       <img src={`/reference/${event.image}`} alt="" />
       <div className="grow">
         <Category event={event} />
+        {event.status !== "approved" && (
+          <span className="tag purple">
+            {event.status === "cancelled"
+              ? "Event cancelled"
+              : "Awaiting approval"}
+          </span>
+        )}
         <h3>{event.title}</h3>
         <p className="meta">
           <Icon name="clock" />
@@ -58,20 +65,27 @@ export function EventCard({ event }: { event: Event }) {
         </p>
         <p className="meta">
           <Icon name="pin" />
-          {event.place} · {event.distance} mi
+          {event.place}
+          {event.distance !== undefined
+            ? ` · ${event.distance.toFixed(1)} mi`
+            : ""}
         </p>
       </div>
       <Icon name="arrow" />
     </Link>
   );
 }
-export function Stats() {
+export function Stats({
+  values = { points: 0, events: 0, hours: 0 },
+}: {
+  values?: { points: number; events: number; hours: number };
+}) {
   return (
     <div className="stats">
       {[
-        ["120", "Points"],
-        ["6", "Events"],
-        ["14", "Volunteer hours"],
+        [String(values.points), "Points"],
+        [String(values.events), "Events"],
+        [String(values.hours), "Volunteer hours"],
       ].map(([n, label]) => (
         <div key={label}>
           <b>{n}</b>

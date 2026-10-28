@@ -1,33 +1,59 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { events } from "@/lib/data";
+import { useRouter } from "next/navigation";
+import { type Event, type Coordinates, filterEvents } from "@/lib/data";
 import { Category, EventCard, Icon } from "./ui";
-export function Explore() {
+import { EventMap } from "./event-map";
+export function Explore({ events, error }: { events: Event[]; error: string }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [types, setTypes] = useState(["volunteer", "event"]);
   const [date, setDate] = useState("any");
-  const [distance, setDistance] = useState("10");
+  const [distance, setDistance] = useState("any");
   const [view, setView] = useState("map");
   const [selected, setSelected] = useState<string | null>(null);
-  const list = events.filter(
-    (e) =>
-      types.includes(e.type) &&
-      `${e.title} ${e.place} ${e.description}`
-        .toLowerCase()
-        .includes(query.toLowerCase()) &&
-      e.distance <= Number(distance) &&
-      (date === "any" ||
-        (date === "week"
-          ? e.isoDate <= "2026-11-01"
-          : e.isoDate <= "2026-10-31")),
+  const [origin, setOrigin] = useState<Coordinates | null>(null);
+  const [locationMessage, setLocationMessage] = useState("");
+  const list = useMemo(
+    () => filterEvents(events, query, types, date, distance, origin),
+    [events, query, types, date, distance, origin],
   );
   const event = list.find((e) => e.id === selected);
   const reset = () => {
     setQuery("");
     setTypes(["volunteer", "event"]);
     setDate("any");
-    setDistance("10");
+    setDistance("any");
+    setOrigin(null);
+    setLocationMessage("");
+    setSelected(null);
+  };
+  const locate = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage(
+        "Location is unavailable. Pan the map and use Search this area.",
+      );
+      return;
+    }
+    setLocationMessage("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setOrigin({
+          latitude: p.coords.latitude,
+          longitude: p.coords.longitude,
+        });
+        setDistance("10");
+        setLocationMessage(
+          "Showing events near your current location. Your position is not saved.",
+        );
+      },
+      () =>
+        setLocationMessage(
+          "Location access was unavailable. Pan the map and use Search this area.",
+        ),
+      { timeout: 10000, maximumAge: 60000 },
+    );
   };
   return (
     <div className={`explore ${view === "list" ? "list-only" : ""}`}>
@@ -66,7 +92,7 @@ export function Explore() {
             >
               <Icon name={icon} />
               {label}
-              <span>2</span>
+              <span>{events.filter((e) => e.type === type).length}</span>
             </button>
           ))}
         </div>
@@ -81,7 +107,7 @@ export function Explore() {
             onChange={(e) => setDate(e.target.value)}
           >
             <option value="any">Any date</option>
-            <option value="week">This week</option>
+            <option value="week">Next 7 days</option>
             <option value="month">This month</option>
           </select>
           <label className="field-label" htmlFor="distance">
@@ -92,18 +118,27 @@ export function Explore() {
             value={distance}
             onChange={(e) => setDistance(e.target.value)}
           >
-            <option value="1">Within 1 mile</option>
-            <option value="5">Within 5 miles</option>
-            <option value="10">Within 10 miles</option>
+            <option value="any">Any distance</option>
+            {origin && (
+              <>
+                <option value="1">Within 1 mile</option>
+                <option value="5">Within 5 miles</option>
+                <option value="10">Within 10 miles</option>
+                <option value="25">Within 25 miles</option>
+              </>
+            )}
           </select>
+          <button className="btn outline" onClick={locate}>
+            <Icon name="pin" />
+            Use my location
+          </button>
           <button className="btn ghost" onClick={reset}>
             Reset filters
           </button>
         </div>
-        <p className="small muted">
-          Sample opportunities in Ourtown, CA.
-          <br />
-          Dates relative to Oct 27, 2026; distances are illustrative.
+        <p className="small muted" role="status">
+          {locationMessage ||
+            "Choose a map area or use your location to find nearby opportunities."}
         </p>
         <div className="view-switch">
           <button onClick={() => setView("map")} aria-pressed={view === "map"}>
@@ -119,24 +154,19 @@ export function Explore() {
           </button>
         </div>
       </aside>
-      <section
-        className="map-pane"
-        aria-label="Illustrative map with sample opportunities"
-      >
-        <div className="map-art" />
-        {list.map((e) => (
-          <button
-            key={e.id}
-            className={`map-marker ${e.type === "event" ? "purple" : ""}`}
-            style={{ left: `${e.x}%`, top: `${e.y}%` }}
-            aria-label={`Preview ${e.title}`}
-            aria-pressed={selected === e.id}
-            onClick={() => setSelected(e.id)}
-          >
-            <Icon name={e.type === "event" ? "calendar" : "leaf"} />
-          </button>
-        ))}
-        <span className="map-label">Illustrative map · Mapbox coming next</span>
+      <section className="map-pane" aria-label="Local opportunities map">
+        <EventMap
+          events={list}
+          origin={origin}
+          onSelect={setSelected}
+          onArea={(area) => {
+            setOrigin(area);
+            setDistance("10");
+            setLocationMessage(
+              "Showing events within 10 miles of the map center.",
+            );
+          }}
+        />
         {event && (
           <div className="map-popover">
             <div className="row between">
@@ -168,23 +198,36 @@ export function Explore() {
         <div className="row between">
           <h2>Nearby Opportunities</h2>
           <span className="small muted" aria-live="polite">
-            {list.length} results
+            {list.length} {list.length === 1 ? "result" : "results"}
           </span>
         </div>
-        {list.map((e) => (
-          <EventCard key={e.id} event={e} />
-        ))}
-        {!list.length && (
-          <div className="empty">
-            <p>No opportunities match these filters.</p>
-            <button className="btn outline" onClick={reset}>
-              Reset filters
+        {error ? (
+          <div className="error-note" role="alert">
+            <p>{error}</p>
+            <button className="btn outline" onClick={() => router.refresh()}>
+              Try again
             </button>
+          </div>
+        ) : (
+          list.map((e) => <EventCard key={e.id} event={e} />)
+        )}
+        {!error && !list.length && (
+          <div className="empty">
+            <p>
+              {events.length
+                ? "No opportunities match these filters."
+                : "No approved upcoming events yet."}
+            </p>
+            {events.length > 0 && (
+              <button className="btn outline" onClick={reset}>
+                Reset filters
+              </button>
+            )}
           </div>
         )}
         <div className="soft-note">
-          Want to share an opportunity?
-          <p>Organizer submissions will be available after backend setup.</p>
+          Want to share an opportunity?{" "}
+          <Link href="/organizer">Post an event</Link>
         </div>
       </aside>
     </div>

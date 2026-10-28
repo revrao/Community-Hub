@@ -2,8 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./ui";
+import { useSession } from "./session-provider";
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const { profile, user } = useSession();
   const links = [
     ["/", "Explore", "map"],
     ["/leaderboard", "Leaderboard", "trophy"],
@@ -49,17 +51,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Link
               href="/profile"
               className="avatar"
-              aria-label="Open sample profile"
+              aria-label={
+                user ? "Open your profile" : "Sign in to CommunityHub"
+              }
             >
-              CM
+              {profile?.display_name
+                .split(" ")
+                .map((x) => x[0])
+                .slice(0, 2)
+                .join("") || "○"}
             </Link>
           </div>
         </div>
       </header>
-      <div className="demo-strip">
-        Sample data preview · Changes last only while this app is open. Accounts
-        and live maps are coming next.
-      </div>
       <main id="main" className="shell">
         {children}
       </main>

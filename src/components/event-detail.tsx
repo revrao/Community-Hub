@@ -1,29 +1,112 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import type { Event } from "@/lib/data";
-import { useDemo } from "./demo-provider";
+import { useSession } from "./session-provider";
+import { browserClient } from "@/lib/supabase/browser";
+import { databaseMessage } from "@/lib/auth";
 import { Category, Icon } from "./ui";
+import { EventMap } from "./event-map";
 export function EventDetail({ event: e }: { event: Event }) {
-  const demo = useDemo();
-  const registered = demo.registered.includes(e.id);
-  const saved = demo.saved.includes(e.id);
+  const { user, loading } = useSession();
+  const router = useRouter();
+  const [registered, setRegistered] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [spots, setSpots] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(true);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [report, setReport] = useState(false);
+  const load = useCallback(async () => {
+    setPending(true);
+    try {
+      const db = browserClient();
+      const available = await db.rpc("event_availability", {
+        p_event_id: e.id,
+      });
+      setSpots(available.error ? null : available.data);
+      if (user) {
+        const [r, s] = await Promise.all([
+          db
+            .from("registrations")
+            .select("status")
+            .eq("event_id", e.id)
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          db
+            .from("saved_events")
+            .select("event_id")
+            .eq("event_id", e.id)
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
+        if (r.error || s.error)
+          setError(databaseMessage((r.error || s.error)!.message));
+        else {
+          setRegistered(r.data?.status === "registered");
+          setSaved(Boolean(s.data));
+        }
+      } else {
+        setRegistered(false);
+        setSaved(false);
+      }
+    } catch {
+      setError("Unable to load your registration. Please try again.");
+    } finally {
+      setPending(false);
+    }
+  }, [e.id, user]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const login = `/login?next=${encodeURIComponent("/events/" + e.id)}`;
+  const closed = e.status !== "approved" || new Date(e.startsAt) <= new Date();
+  const mutate = async (
+    action: () => PromiseLike<{ error: { message: string } | null }>,
+    success: string,
+  ) => {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const { error } = await action();
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      await load();
+      setMessage(success);
+      router.refresh();
+    } catch {
+      setError("Unable to connect. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="page">
       <Link className="backlink" href="/">
         ← Back to map
       </Link>
+      {e.status !== "approved" && (
+        <p className="soft-note">
+          Event status: {e.status}. Registration is unavailable.
+        </p>
+      )}
       <div className="cols-main">
         <div className="stack">
           <section className="card card-pad">
             <div className="event-hero">
-              <img src={`/reference/${e.image}`} alt={e.title} />
+              <img src={`/reference/${e.image}`} alt="Category illustration" />
               <div>
                 <Category event={e} />
                 <h1>{e.title}</h1>
                 <div className="event-meta">
                   <p>
                     <Icon name="calendar" />
-                    {e.date}, 2026
+                    {e.date}
                   </p>
                   <p>
                     <Icon name="clock" />
@@ -39,26 +122,96 @@ export function EventDetail({ event: e }: { event: Event }) {
                   </p>
                 </div>
                 <div className="row wrap">
-                  <button
-                    className="btn"
-                    onClick={() => demo.toggleRegistration(e.id)}
-                  >
-                    {registered ? "Cancel sample RSVP" : "Try sample RSVP"}
-                  </button>
-                  <button
-                    className="btn ghost"
-                    aria-pressed={saved}
-                    onClick={() => demo.toggleSave(e.id)}
-                  >
-                    <Icon name="bookmark" />
-                    {saved ? "Saved" : "Save"}
-                  </button>
+                  {loading ? (
+                    <p role="status">Checking your session…</p>
+                  ) : !user ? (
+                    <Link className="btn" href={login}>
+                      Sign Up for Event
+                    </Link>
+                  ) : (
+                    <button
+                      className="btn"
+                      disabled={
+                        busy ||
+                        pending ||
+                        (registered
+                          ? new Date(e.startsAt) <= new Date()
+                          : closed || spots === 0)
+                      }
+                      onClick={() =>
+                        void mutate(
+                          () =>
+                            browserClient().rpc(
+                              registered
+                                ? "cancel_registration"
+                                : "register_for_event",
+                              { p_event_id: e.id },
+                            ),
+                          registered
+                            ? "Registration cancelled. Your spot has been released."
+                            : "You’re registered! View your upcoming events in Profile.",
+                        )
+                      }
+                    >
+                      {registered
+                        ? "Cancel Registration"
+                        : closed
+                          ? "Registration Closed"
+                          : spots === 0
+                            ? "Event Full"
+                            : "Sign Up"}
+                    </button>
+                  )}
+                  {user ? (
+                    <button
+                      className="btn ghost"
+                      disabled={busy || pending}
+                      aria-pressed={saved}
+                      onClick={() =>
+                        void mutate(
+                          () =>
+                            saved
+                              ? browserClient()
+                                  .from("saved_events")
+                                  .delete()
+                                  .eq("user_id", user.id)
+                                  .eq("event_id", e.id)
+                              : browserClient()
+                                  .from("saved_events")
+                                  .insert({ user_id: user.id, event_id: e.id }),
+                          saved
+                            ? "Removed from saved opportunities."
+                            : "Saved to your profile.",
+                        )
+                      }
+                    >
+                      <Icon name="bookmark" />
+                      {saved ? "Saved" : "Save"}
+                    </button>
+                  ) : (
+                    <Link className="btn ghost" href={login}>
+                      <Icon name="bookmark" />
+                      Save
+                    </Link>
+                  )}
                 </div>
-                <p className="small muted about" role="status">
+                <p className="small muted about">
                   {registered
-                    ? "Sample RSVP added. Find it in Profile → Upcoming. No real spot is reserved."
-                    : `${e.spots} sample spots left · No real registration is sent.`}
+                    ? "You are registered for this event."
+                    : spots === null
+                      ? ""
+                      : `${spots} ${spots === 1 ? "spot" : "spots"} left`}
                 </p>
+                {error && (
+                  <p className="error-note" role="alert">
+                    {error}
+                  </p>
+                )}
+                {message && (
+                  <p className="soft-note" role="status">
+                    {message}
+                  </p>
+                )}
               </div>
             </div>
             <hr />
@@ -69,35 +222,85 @@ export function EventDetail({ event: e }: { event: Event }) {
               </div>
               <div>
                 <b>{e.points}</b>
-                <span>Points after attendance</span>
+                <span>Points after verified attendance</span>
               </div>
             </div>
           </section>
           <section className="card card-pad">
             <h2>About This Event</h2>
-            <p className="muted about">{e.description}</p>
+            <p className="muted about preserve-lines">{e.description}</p>
             <hr />
-            <h3>What to expect</h3>
+            <h3>Participation</h3>
             <p className="muted about">
-              Friendly neighbors, clear instructions from the organizer, and
-              attendance confirmed after participation.
+              Attendance is confirmed by an authorized organizer after the
+              event. An RSVP alone does not award points.
             </p>
+            {e.status === "approved" &&
+              (user ? (
+                <button
+                  className="linkbutton"
+                  onClick={() => setReport(!report)}
+                >
+                  {report ? "Cancel report" : "Report this event"}
+                </button>
+              ) : (
+                <Link href={login}>Sign in to report a concern</Link>
+              ))}
+            {report && (
+              <form
+                className="editor"
+                onSubmit={async (f) => {
+                  f.preventDefault();
+                  const reason = String(
+                    new FormData(f.currentTarget).get("reason"),
+                  );
+                  await mutate(
+                    () =>
+                      browserClient().rpc("report_event", {
+                        p_event_id: e.id,
+                        p_reason: reason,
+                      }),
+                    "Report submitted for administrator review.",
+                  );
+                }}
+              >
+                <label className="field-label" htmlFor="reason">
+                  Describe your concern
+                </label>
+                <textarea
+                  id="reason"
+                  name="reason"
+                  minLength={5}
+                  maxLength={2000}
+                  required
+                />
+                <button className="btn outline" disabled={busy}>
+                  Submit Report
+                </button>
+              </form>
+            )}
           </section>
         </div>
         <aside className="stack">
           <section className="card card-pad">
             <h2>Event Location</h2>
-            <div className="side-map" />
+            <div className="location-map">
+              <EventMap events={[e]} />
+            </div>
             <h3>{e.place}</h3>
             <p className="muted small">{e.address}</p>
-            <p className="small muted about">
-              Illustrative location. Live Mapbox map coming next.
-            </p>
+            <a
+              className="backlink"
+              href={`https://www.google.com/maps/search/?api=1&query=${e.latitude},${e.longitude}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open directions ↗
+            </a>
           </section>
           <section className="card card-pad">
             <h2>Organizer</h2>
             <p className="about">{e.organizer}</p>
-            <p className="muted small">Sample organization</p>
           </section>
         </aside>
       </div>

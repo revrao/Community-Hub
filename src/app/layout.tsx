@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import "mapbox-gl/dist/mapbox-gl.css";
 import "./globals.css";
 import { Shell } from "@/components/shell";
-import { DemoProvider } from "@/components/demo-provider";
+import { SessionProvider } from "@/components/session-provider";
 export const metadata: Metadata = {
   title: { default: "CommunityHub | Explore", template: "CommunityHub | %s" },
   description:
@@ -15,9 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <DemoProvider>
+        <SessionProvider>
           <Shell>{children}</Shell>
-        </DemoProvider>
+        </SessionProvider>
       </body>
     </html>
   );

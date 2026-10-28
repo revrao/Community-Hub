@@ -51,3 +51,7 @@ Enable RLS on every table. Public visitors see approved listings and safe leader
 ## Needed before backend work
 
 Supabase project URL and publishable key; Mapbox public token restricted to intended origins; pilot town/region and timezone. Configure credentials locally in .env.local from .env.example; do not share private/service-role keys in chat. Agree point rules and who initially holds organizer/admin roles. Set local Auth redirect URLs when auth is implemented. Schema migrations and policies will be reviewable before being applied.
+
+## MVP implementation update
+
+The follow-on implementation replaces the sample-data layer with Supabase Auth and persisted records, Mapbox GL JS, transactional registration/verification functions, and organizer/admin screens. The initial MVP keeps interests as a bounded profile array and assigns an approved organizer role per member; organization memberships and additional publishing teams can be added in a later forward migration when needed. See `SUPABASE_SETUP.md` for the actual four-file migration model and `MVP_VERIFICATION.md` for checks and remaining live multi-account verification. No service-role key is used by the app.

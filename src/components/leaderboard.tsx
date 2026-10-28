@@ -1,9 +1,52 @@
 "use client";
-import { useState } from "react";
-import { leaders } from "@/lib/data";
+import { useEffect, useState } from "react";
+import { browserClient } from "@/lib/supabase/browser";
+import { useSession } from "./session-provider";
 import { Stats } from "./ui";
+import { databaseMessage } from "@/lib/auth";
+type Leader = {
+  user_id: string;
+  display_name: string;
+  points: number;
+  events: number;
+  hours: number;
+};
 export function Leaderboard() {
-  const [period, setPeriod] = useState("This Month");
+  const { user } = useSession();
+  const [period, setPeriod] = useState("month");
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+  const [stats, setStats] = useState({ points: 0, events: 0, hours: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    void (async () => {
+      try {
+        const db = browserClient();
+        const result = await db.rpc("community_leaderboard", {
+          p_period: period,
+        });
+        if (!active) return;
+        if (result.error) setError(databaseMessage(result.error.message));
+        else setLeaders(result.data ?? []);
+        if (user) {
+          const s = await db.rpc("my_stats");
+          if (active && s.data?.[0]) setStats(s.data[0]);
+        } else setStats({ points: 0, events: 0, hours: 0 });
+      } catch {
+        if (active) setError("Unable to load rankings. Please try again.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [period, user, retry]);
+  const rank = leaders.findIndex((l) => l.user_id === user?.id) + 1;
   return (
     <div className="page">
       <div className="heading-row">
@@ -15,74 +58,112 @@ export function Leaderboard() {
       <div className="cols-main">
         <section className="card card-pad">
           <div className="pills">
-            {["This Month", "All Time"].map((p) => (
+            {[
+              ["month", "This Month"],
+              ["all", "All Time"],
+            ].map(([value, label]) => (
               <button
-                key={p}
-                className={`pill ${period === p ? "selected" : ""}`}
-                aria-pressed={period === p}
-                onClick={() => setPeriod(p)}
+                key={value}
+                className={`pill ${period === value ? "selected" : ""}`}
+                aria-pressed={period === value}
+                onClick={() => setPeriod(value)}
               >
-                {p}
+                {label}
               </button>
             ))}
           </div>
           <p className="small muted board-note">
-            Sample rankings ·{" "}
-            {period === "This Month" ? "October 2026" : "All time"}
+            Verified participation ·{" "}
+            {period === "month" ? "Current calendar month (UTC)" : "All time"} ·
+            Top 100
           </p>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Points</th>
-                  <th scope="col">Events</th>
-                  <th scope="col">Volunteer Hours</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...leaders].map((l, i) => (
-                  <tr key={l.name} className={i === 5 ? "you" : ""}>
-                    <td>
-                      <span className={`rank rank-${i}`}>{i + 1}</span>
-                    </td>
-                    <th scope="row">
-                      <span className="member">
-                        <span className="avatar small-avatar">
-                          {l.name
-                            .split(" ")
-                            .map((x) => x[0])
-                            .join("")}
-                        </span>
-                        {i === 5 ? "You" : l.name}
-                      </span>
-                    </th>
-                    <td>{l.points * (period === "All Time" ? 4 : 1)}</td>
-                    <td>{l.events * (period === "All Time" ? 4 : 1)}</td>
-                    <td>{l.hours * (period === "All Time" ? 4 : 1)}</td>
+          {loading ? (
+            <p className="empty" role="status">
+              Loading rankings…
+            </p>
+          ) : error ? (
+            <div className="error-note" role="alert">
+              {error}
+              <button
+                className="btn outline"
+                onClick={() => setRetry((n) => n + 1)}
+              >
+                Try again
+              </button>
+            </div>
+          ) : !leaders.length ? (
+            <p className="empty">
+              No verified participation yet. Be among the first to get involved.
+            </p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Points</th>
+                    <th scope="col">Events</th>
+                    <th scope="col">Volunteer Hours</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {leaders.map((l, i) => (
+                    <tr
+                      key={l.user_id}
+                      className={l.user_id === user?.id ? "you" : ""}
+                    >
+                      <td>
+                        <span className={`rank rank-${i}`}>{i + 1}</span>
+                      </td>
+                      <th scope="row">
+                        <span className="member">
+                          <span className="avatar small-avatar">
+                            {l.display_name
+                              .split(" ")
+                              .map((x) => x[0])
+                              .slice(0, 2)
+                              .join("")}
+                          </span>
+                          {l.display_name}
+                          {l.user_id === user?.id ? " (You)" : ""}
+                        </span>
+                      </th>
+                      <td>{l.points}</td>
+                      <td>{l.events}</td>
+                      <td>{l.hours}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
         <aside className="stack">
-          <section className="card card-pad">
-            <h2>My Stats</h2>
-            <p className="muted about">
-              Your sample participation · #{6} this month
-            </p>
-            <Stats />
-          </section>
+          {user && (
+            <section className="card card-pad">
+              <h2>My Stats</h2>
+              <p className="muted about">
+                {rank
+                  ? `#${rank} in this ranking`
+                  : "No public ranking in the top 100 for this period."}
+              </p>
+              <p className="small muted">
+                Your all-time verified participation
+              </p>
+              <Stats values={stats} />
+            </section>
+          )}
           <section className="card card-pad">
             <h2>How points work</h2>
             <p className="muted about">
-              Points recognize verified participation. An organizer confirms
-              attendance before points and volunteer hours are added.
+              Verified volunteering earns 50 points per event. Verified
+              community-event attendance earns 10. An organizer confirms
+              attendance after the event ends.
             </p>
             <div className="soft-note">
-              No points are awarded for an RSVP alone.
+              No points are awarded for an RSVP alone. You can hide your name
+              from rankings in Profile.
             </div>
           </section>
         </aside>

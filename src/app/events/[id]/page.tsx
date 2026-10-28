@@ -1,16 +1,9 @@
 import { notFound } from "next/navigation";
-import { events } from "@/lib/data";
+import { getEvent } from "@/lib/events";
 import { EventDetail } from "@/components/event-detail";
-export function generateStaticParams() {
-  return events.map((e) => ({ id: e.id }));
-}
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  return { title: events.find((e) => e.id === id)?.title || "Event not found" };
+export const dynamic = "force-dynamic";
+export async function generateMetadata() {
+  return { title: "Event Details" };
 }
 export default async function Page({
   params,
@@ -18,7 +11,16 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const event = events.find((e) => e.id === id);
+  const { event, error } = await getEvent(id);
+  if (error)
+    return (
+      <div className="page">
+        <h1>Event unavailable</h1>
+        <p className="error-note" role="alert">
+          {error}
+        </p>
+      </div>
+    );
   if (!event) notFound();
   return <EventDetail event={event} />;
 }

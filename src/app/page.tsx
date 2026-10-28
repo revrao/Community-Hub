@@ -1,4 +1,7 @@
 import { Explore } from "@/components/explore";
-export default function Page() {
-  return <Explore />;
+import { getEvents } from "@/lib/events";
+export const dynamic = "force-dynamic";
+export default async function Page() {
+  const data = await getEvents();
+  return <Explore {...data} />;
 }
