@@ -15,7 +15,7 @@ Open http://127.0.0.1:3000. The three main destinations are Explore, Leaderboard
 
 ## Database setup
 
-Apply the versioned SQL files under `supabase/migrations/` in order. The project owner has applied the first four migrations manually in Supabase SQL Editor. Follow [hosted setup](docs/SUPABASE_SETUP.md) for teammate setup, auth redirects, initial admin assignment and CLI migration-history reconciliation. No real events or admin identities are seeded automatically.
+Apply the versioned SQL files under `supabase/migrations/` in order. The project owner has applied the first five migrations manually in Supabase SQL Editor. Follow [hosted setup](docs/SUPABASE_SETUP.md) for teammate setup, auth redirects, initial admin assignment and CLI migration-history reconciliation. No real events or admin identities are seeded automatically.
 
 ## Checks
 
@@ -36,3 +36,5 @@ Event approval is required before public discovery. RSVP/cancel functions enforc
 Device location is used only in browser memory for nearby discovery. Event addresses should be public venues. Monthly rankings use UTC calendar months and honor each member's visibility preference.
 
 GitHub pushes and website deployments require the owner’s approval.
+
+Account dropdown, private profile-photo storage, and Google OAuth setup are documented in [profile photos and Google sign-in](docs/PROFILE_PHOTOS_GOOGLE_SETUP.md). Google credentials belong only in the Supabase provider configuration.

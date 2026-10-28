@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import { useSession } from "./session-provider";
+import { Avatar } from "./avatar";
+import { useAvatarUrls } from "@/hooks/use-avatar-urls";
+import type { AvatarPhoto } from "@/lib/avatars";
 import { Stats } from "./ui";
 import { databaseMessage } from "@/lib/auth";
 type Leader = {
@@ -13,6 +16,8 @@ type Leader = {
 };
 export function Leaderboard() {
   const { user } = useSession();
+  const [photos, setPhotos] = useState<AvatarPhoto[]>([]);
+  const photoUrls = useAvatarUrls(photos);
   const [period, setPeriod] = useState("month");
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [stats, setStats] = useState({ points: 0, events: 0, hours: 0 });
@@ -31,7 +36,15 @@ export function Leaderboard() {
         });
         if (!active) return;
         if (result.error) setError(databaseMessage(result.error.message));
-        else setLeaders(result.data ?? []);
+        else {
+          const rows: Leader[] = result.data ?? [];
+          setLeaders(rows);
+          const photoResult = await db.rpc("leaderboard_photos", {
+            p_user_ids: rows.map((row) => row.user_id),
+          });
+          if (active)
+            setPhotos(photoResult.error ? [] : (photoResult.data ?? []));
+        }
         if (user) {
           const s = await db.rpc("my_stats");
           if (active && s.data?.[0]) setStats(s.data[0]);
@@ -118,13 +131,16 @@ export function Leaderboard() {
                       </td>
                       <th scope="row">
                         <span className="member">
-                          <span className="avatar small-avatar">
-                            {l.display_name
-                              .split(" ")
-                              .map((x) => x[0])
-                              .slice(0, 2)
-                              .join("")}
-                          </span>
+                          <Avatar
+                            name={l.display_name}
+                            customUrl={photoUrls[l.user_id]}
+                            googleUrl={
+                              photos.find(
+                                (photo) => photo.user_id === l.user_id,
+                              )?.google_avatar_url
+                            }
+                            className="small-avatar"
+                          />
                           {l.display_name}
                           {l.user_id === user?.id ? " (You)" : ""}
                         </span>

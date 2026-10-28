@@ -29,6 +29,7 @@ if (url && key) {
       if (label === "Auth" && res.ok) {
         const data = await res.json();
         console.log("Email auth enabled:", Boolean(data.external?.email));
+        console.log("Google auth enabled:", Boolean(data.external?.google));
         console.log("Email confirmation required:", !data.mailer_autoconfirm);
       }
     } catch {

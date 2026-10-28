@@ -6,12 +6,29 @@ import { useSession } from "./session-provider";
 import { browserClient } from "@/lib/supabase/browser";
 import { databaseMessage } from "@/lib/auth";
 import { EventCard, Stats } from "./ui";
+import { Avatar } from "./avatar";
+import { ProfilePictureEditor } from "./profile-picture-editor";
+import {
+  profileTabs,
+  profileHref,
+  type ProfileTab,
+} from "@/lib/profile-navigation";
 import { eventFromRow, type Event } from "@/lib/data";
-export function Profile() {
+export function Profile({
+  initialTab = "Overview",
+  notice,
+}: {
+  initialTab?: ProfileTab;
+  notice?: string;
+}) {
   const session = useSession();
   const router = useRouter();
   const { profile, user } = session;
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTab] = useState<ProfileTab>(initialTab);
+  useEffect(() => {
+    setTab(initialTab);
+    setEditing(false);
+  }, [initialTab]);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -119,13 +136,12 @@ export function Profile() {
     <div className="page">
       <section className="card profile-header">
         <div className="row">
-          <div className="avatar large">
-            {profile.display_name
-              .split(" ")
-              .map((x) => x[0])
-              .slice(0, 2)
-              .join("")}
-          </div>
+          <Avatar
+            name={profile.display_name}
+            customUrl={session.avatarUrl}
+            googleUrl={profile.google_avatar_url}
+            className="large"
+          />
           <div className="grow">
             <h1>{profile.display_name}</h1>
             <p className="muted">
@@ -145,6 +161,12 @@ export function Profile() {
         </div>
         <Stats values={stats} />
       </section>
+      {notice === "profile_setup" && (
+        <p className="error-note" role="alert">
+          You are signed in, but your profile picture could not be refreshed.
+          Please try again later.
+        </p>
+      )}
       {(error || session.error) && (
         <p className="error-note" role="alert">
           {error || session.error}
@@ -190,6 +212,7 @@ export function Profile() {
           }}
         >
           <h2>Edit Your Profile</h2>
+          <ProfilePictureEditor />
           <label className="field-label" htmlFor="name">
             Full name
           </label>
@@ -254,18 +277,19 @@ export function Profile() {
         </form>
       )}
       <div className="tabs" aria-label="Profile sections">
-        {["Overview", "Upcoming", "Past Activity", "Saved", "Settings"].map(
-          (t) => (
-            <button
-              key={t}
-              aria-pressed={tab === t}
-              className={tab === t ? "active" : ""}
-              onClick={() => setTab(t)}
-            >
-              {t}
-            </button>
-          ),
-        )}
+        {profileTabs.map((t) => (
+          <button
+            key={t}
+            aria-pressed={tab === t}
+            className={tab === t ? "active" : ""}
+            onClick={() => {
+              setTab(t);
+              router.push(profileHref(t), { scroll: false });
+            }}
+          >
+            {t}
+          </button>
+        ))}
       </div>
       {activityLoading && (
         <p className="muted about" role="status">
@@ -345,15 +369,14 @@ export function Profile() {
               disabled={busy}
               onClick={async () => {
                 setBusy(true);
-                const { error } = await browserClient().auth.signOut({
-                  scope: "local",
-                });
-                setBusy(false);
-                if (error) {
-                  setError("Unable to log out. Please try again.");
+                try {
+                  await session.signOut();
+                } catch {
+                  setBusy(false);
+                  setError("Unable to sign out. Please try again.");
                   return;
                 }
-                await session.refresh();
+                setBusy(false);
                 router.push("/");
                 router.refresh();
               }}

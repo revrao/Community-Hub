@@ -6,6 +6,15 @@ await db.exec(`create role anon;create role authenticated;create schema auth;
 create table auth.users(id uuid primary key,raw_user_meta_data jsonb not null default '{}');
 create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
 grant usage on schema auth to anon,authenticated;grant execute on function auth.uid() to anon,authenticated;`);
+// Minimal Supabase Auth/Storage schemas for exercising the real policies locally.
+await db.exec(`create table auth.identities(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,provider text not null,identity_data jsonb not null default '{}');
+create schema storage;
+create table storage.buckets(id text primary key,name text not null,public boolean not null default false,file_size_limit bigint,allowed_mime_types text[]);
+create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text references storage.buckets(id),name text not null,owner_id text,metadata jsonb,unique(bucket_id,name));
+alter table storage.objects enable row level security;
+grant usage on schema storage to anon,authenticated;
+grant select on storage.objects to anon,authenticated;
+grant insert,update,delete on storage.objects to authenticated;`);
 const migrations = (await readdir("supabase/migrations"))
   .filter((f) => f.endsWith(".sql"))
   .sort();
@@ -276,4 +285,54 @@ await denied(injected, "select * from public.admin_organizer_requests()");
 console.log(
   "Additional security checks passed: RLS on every table, protected profile columns, private moderation/points, and rejected signup-metadata role injection.",
 );
+
+// Profile photo policy and Google identity lifecycle checks.
+await db.exec('reset role;');
+const googleUser='00000000-0000-4000-8000-000000000006';
+await db.exec(`insert into auth.users(id,raw_user_meta_data) values('${googleUser}','{"full_name":"Google New Member"}');
+insert into auth.identities(user_id,provider,identity_data) values('${googleUser}','google','{"picture":"https://lh3.googleusercontent.com/test-photo"}');`);
+let googleProfile=(await asUser(googleUser,'select * from public.profiles')).rows[0];
+assert.equal(googleProfile.display_name,'Google New Member');assert.equal(googleProfile.google_avatar_url,'https://lh3.googleusercontent.com/test-photo');
+await asUser(googleUser,"update public.profiles set display_name='My edited name' where id=auth.uid()");
+await asUser(googleUser,'select public.sync_google_profile()');await asUser(googleUser,'select public.sync_google_profile()');
+assert.equal((await asUser(googleUser,'select count(*)::int as n from public.profiles')).rows[0].n,1);
+assert.equal((await asUser(googleUser,'select display_name from public.profiles')).rows[0].display_name,'My edited name');
+const photo1=googleUser+'/11111111-1111-4111-8111-111111111111.webp';
+const photo2=googleUser+'/22222222-2222-4222-8222-222222222222.webp';
+await denied(other,`insert into storage.objects(bucket_id,name,owner_id,metadata) values('avatars','${photo1}','${other}','{"mimetype":"image/webp","size":100}')`);
+await asUser(googleUser,`insert into storage.objects(bucket_id,name,owner_id,metadata) values('avatars','${photo1}','${googleUser}','{"mimetype":"image/webp","size":100}')`);
+await asUser(googleUser,`select public.set_profile_avatar('${photo1}')`);
+await denied(other,`select public.set_profile_avatar('${photo1}')`);
+await denied(googleUser,`select public.set_profile_avatar('${other}/11111111-1111-4111-8111-111111111111.webp')`);
+await denied(googleUser,"update public.profiles set avatar_path=null where id=auth.uid()");
+await denied(googleUser,"update public.profiles set google_avatar_url='https://example.com/evil' where id=auth.uid()");
+assert.equal((await asUser(other,`select * from storage.objects where name='${photo1}'`)).rows.length,0);
+assert.equal((await asUser(other,`delete from storage.objects where name='${photo1}' returning id`)).rows.length,0);
+assert.equal((await asUser(other,`update storage.objects set name='${photo2}' where name='${photo1}' returning id`)).rows.length,0);
+await db.exec("reset role;set role anon;select set_config('request.jwt.claim.sub','',false);");
+assert.equal((await db.query(`select * from storage.objects where name='${photo1}'`)).rows.length,0);
+await assert.rejects(()=>db.query("select public.set_profile_avatar(null)"));
+await db.exec(`reset role;update auth.identities set identity_data='{"picture":"https://lh3.googleusercontent.com/updated"}' where user_id='${googleUser}';`);
+googleProfile=(await asUser(googleUser,'select * from public.profiles')).rows[0];
+assert.equal(googleProfile.avatar_path,photo1);assert.equal(googleProfile.google_avatar_url,'https://lh3.googleusercontent.com/updated');assert.equal(googleProfile.display_name,'My edited name');
+await asUser(googleUser,`insert into storage.objects(bucket_id,name,owner_id,metadata) values('avatars','${photo2}','${googleUser}','{"mimetype":"image/webp","size":200}')`);
+assert.equal((await asUser(googleUser,`select public.set_profile_avatar('${photo2}') as previous`)).rows[0].previous,photo1);
+await asUser(googleUser,`delete from storage.objects where name='${photo1}'`);
+assert.equal((await asUser(googleUser,`select public.set_profile_avatar(null) as previous`)).rows[0].previous,photo2);
+await asUser(googleUser,`delete from storage.objects where name='${photo2}'`);
+googleProfile=(await asUser(googleUser,'select * from public.profiles')).rows[0];assert.equal(googleProfile.avatar_path,null);assert.equal(googleProfile.google_avatar_url,'https://lh3.googleusercontent.com/updated');
+await db.exec(`reset role;update auth.identities set identity_data='{"picture":"https://evil.test/pixel"}' where user_id='${googleUser}';`);
+assert.equal((await asUser(googleUser,'select google_avatar_url from public.profiles')).rows[0].google_avatar_url,null);
+// Only current photos of opted-in verified participants are available to others.
+const publicPhoto=member+'/33333333-3333-4333-8333-333333333333.webp';
+await asUser(member,`insert into storage.objects(bucket_id,name,owner_id,metadata) values('avatars','${publicPhoto}','${member}','{"mimetype":"image/webp","size":100}')`);
+await asUser(member,`select public.set_profile_avatar('${publicPhoto}')`);
+await asUser(member,'update public.profiles set leaderboard_visible=true where id=auth.uid()');
+await db.exec("reset role;set role anon;select set_config('request.jwt.claim.sub','',false);");
+assert.equal((await db.query(`select * from public.leaderboard_photos(ARRAY['${member}','${googleUser}']::uuid[])`)).rows.length,1);
+assert.equal((await db.query(`select * from storage.objects where name='${publicPhoto}'`)).rows.length,1);
+await asUser(member,'update public.profiles set leaderboard_visible=false where id=auth.uid()');
+await db.exec("reset role;set role anon;select set_config('request.jwt.claim.sub','',false);");
+assert.equal((await db.query(`select * from storage.objects where name='${publicPhoto}'`)).rows.length,0);
+console.log('Photo security passed: bucket privacy, ownership, path constraints, replacement/removal, private photos, leaderboard consent, Google fallback, name preservation and idempotent profile sync.');
 await db.close();

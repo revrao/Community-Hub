@@ -2,10 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./ui";
-import { useSession } from "./session-provider";
+import { AccountMenu } from "./account-menu";
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
-  const { profile, user } = useSession();
   const links = [
     ["/", "Explore", "map"],
     ["/leaderboard", "Leaderboard", "trophy"],
@@ -48,19 +47,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               <Icon name="search" />
               Search opportunities
             </Link>
-            <Link
-              href="/profile"
-              className="avatar"
-              aria-label={
-                user ? "Open your profile" : "Sign in to CommunityHub"
-              }
-            >
-              {profile?.display_name
-                .split(" ")
-                .map((x) => x[0])
-                .slice(0, 2)
-                .join("") || "○"}
-            </Link>
+            <AccountMenu />
           </div>
         </div>
       </header>

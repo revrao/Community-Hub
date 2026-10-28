@@ -78,6 +78,9 @@ for (const [name, args] of [
     body: args,
     allowed: [401, 403],
   });
+await probe('Leaderboard photo lookup is available','/rest/v1/rpc/leaderboard_photos',{method:'POST',body:{p_user_ids:[]}});
+await probe('Anonymous photo changes are denied','/rest/v1/rpc/set_profile_avatar',{method:'POST',body:{p_path:null},allowed:[401,403]});
+await probe('Anonymous Google profile sync is denied','/rest/v1/rpc/sync_google_profile',{method:'POST',body:{},allowed:[401,403]});
 console.log(
   "Hosted probes complete. No credentials or response bodies printed.",
 );
