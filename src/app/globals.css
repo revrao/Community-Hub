@@ -1214,3 +1214,16 @@ button:disabled {
 .address-search{position:relative}.address-suggestions{position:absolute;z-index:20;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 25px #263a5a20;padding:5px;margin:4px 0;list-style:none;max-height:280px;overflow-y:auto}.address-suggestions li{padding:12px;border-radius:7px;cursor:pointer;min-height:48px;display:flex;flex-direction:column;gap:4px;font-size:14px}.address-suggestions li span{font-size:12px;color:var(--muted)}.address-suggestions li:hover,.address-suggestions li.active{background:#edf3ff;color:var(--blue)}.event-location-picker [role=status]{min-height:20px;margin:8px 0}.address-search input{width:100%}
 
 .header-search{position:relative;min-width:0}.header-search .topsearch{display:flex;align-items:center;width:230px;padding:9px 12px}.header-search input{border:0;background:transparent;padding:0;min-width:0;width:100%;font-size:13px;outline-offset:4px}.header-search-panel{position:absolute;top:calc(100% + 8px);right:0;width:360px;max-width:calc(100vw - 28px);max-height:60dvh;overflow:auto;border:1px solid var(--border);border-radius:10px;background:white;box-shadow:0 10px 30px #263a5a25;padding:8px;z-index:70}.header-search-panel p{padding:8px;margin:0}.header-search-panel>button{padding:10px}.event-search-results{list-style:none;margin:0;padding:0}.event-search-results li{display:flex;flex-direction:column;gap:5px;min-height:48px;padding:12px;border-radius:7px;cursor:pointer;font-size:13px}.event-search-results li span{font-size:12px;color:var(--muted)}.event-search-results li:hover,.event-search-results li.active{background:#edf3ff;color:var(--blue)}@media(max-width:1150px) and (min-width:901px){.header-search .topsearch{width:180px}}@media(max-width:900px){.nav-inner{height:auto;min-height:68px;flex-wrap:wrap;padding-bottom:10px}.nav-right{display:contents}.nav-inner>.brand{margin-right:auto}.nav-inner .account-control,.nav-inner .guest-auth{order:1}.header-search{order:2;width:100%}.header-search .topsearch{width:100%}.header-search-panel{width:100%;max-width:100%;right:0}}
+
+.admin-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: middle;
+}

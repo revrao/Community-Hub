@@ -1,4 +1,5 @@
 "use client";
+import { AdminBadge } from "./admin-badge";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -143,7 +144,7 @@ export function AccountMenu() {
           }}
         >
           <div className="account-menu-heading" role="none">
-            <strong>{name}</strong>
+            <strong>{name}<AdminBadge role={role} /></strong>
             <span>{user.email}</span>
           </div>
           {accountLinks(role).map((item) => (

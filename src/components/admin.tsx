@@ -4,6 +4,7 @@ import Link from "next/link";
 import { browserClient } from "@/lib/supabase/browser";
 import { type EventRow } from "@/lib/data";
 import { databaseMessage } from "@/lib/auth";
+import { ManageAdmins } from "./manage-admins";
 type Request = {
   user_id: string;
   display_name: string;
@@ -108,6 +109,7 @@ export function Admin() {
           "Organizer Requests",
           "Reports",
           "Moderation History",
+          "Manage Admins",
         ].map((t) => (
           <button
             key={t}
@@ -125,6 +127,8 @@ export function Admin() {
           <p className="empty" role="status">
             Loading review queues…
           </p>
+        ) : tab === "Manage Admins" ? (
+          <ManageAdmins />
         ) : tab === "Event Approvals" ? (
           events.length ? (
             events.map((e) => (

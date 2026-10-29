@@ -1,4 +1,5 @@
 "use client";
+import { AdminBadge } from "./admin-badge";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -143,7 +144,7 @@ export function Profile({
             className="large"
           />
           <div className="grow">
-            <h1>{profile.display_name}</h1>
+            <h1>{profile.display_name}<AdminBadge role={session.role} /></h1>
             <p className="muted">
               {profile.location_area || "Community member"}
             </p>

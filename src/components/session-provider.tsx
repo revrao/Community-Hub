@@ -104,10 +104,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const avatarUrl = profile ? (photoUrls[profile.id] ?? null) : null;
   useEffect(() => {
     void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
     const { data } = browserClient().auth.onAuthStateChange(() => {
       setTimeout(() => void refresh(), 0);
     });
-    return () => data.subscription.unsubscribe();
+    return () => { window.removeEventListener("focus", onFocus); data.subscription.unsubscribe(); };
   }, [refresh]);
   return (
     <Context.Provider

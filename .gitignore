@@ -34,3 +34,6 @@ supabase/.branches/
 
 # Netlify local build/link state
 .netlify/
+
+# Private database exports and cleanup backups
+private-backups/

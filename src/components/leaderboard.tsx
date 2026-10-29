@@ -1,4 +1,5 @@
 "use client";
+import { AdminBadge } from "./admin-badge";
 import { useEffect, useState } from "react";
 import { browserClient } from "@/lib/supabase/browser";
 import { useSession } from "./session-provider";
@@ -16,6 +17,7 @@ type Leader = {
 };
 export function Leaderboard() {
   const { user } = useSession();
+  const [admins, setAdmins] = useState<string[]>([]);
   const [photos, setPhotos] = useState<AvatarPhoto[]>([]);
   const photoUrls = useAvatarUrls(photos);
   const [period, setPeriod] = useState("month");
@@ -39,6 +41,8 @@ export function Leaderboard() {
         else {
           const rows: Leader[] = result.data ?? [];
           setLeaders(rows);
+          const badges = await db.rpc("leaderboard_administrators", { p_user_ids: rows.map((row) => row.user_id) });
+          if (active) setAdmins((badges.data ?? []).map((row: {user_id: string}) => row.user_id));
           const photoResult = await db.rpc("leaderboard_photos", {
             p_user_ids: rows.map((row) => row.user_id),
           });
@@ -141,7 +145,7 @@ export function Leaderboard() {
                             }
                             className="small-avatar"
                           />
-                          {l.display_name}
+                          {l.display_name}<AdminBadge role={admins.includes(l.user_id) ? "admin" : null} />
                           {l.user_id === user?.id ? " (You)" : ""}
                         </span>
                       </th>
