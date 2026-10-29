@@ -129,7 +129,7 @@ export function EventDetail({ event: e }: { event: Event }) {
         <div className="stack">
           <section className="card card-pad">
             <div className="event-hero">
-              <img src={`/reference/${e.image}`} alt="Category illustration" />
+              <img src={`/reference/${e.image}`} alt={e.type === "volunteer" ? "Stock photograph of volunteers collecting litter" : "Stock photograph of a community gathering in a park"} />
               <div>
                 <Category event={e} />
                 <h1>{e.title}</h1>

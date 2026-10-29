@@ -66,7 +66,7 @@ export function eventFromRow(value: unknown): Event {
       }).format(new Date(row.ends_at)),
     place: row.location_name,
     address: row.address,
-    image: row.category === "volunteering" ? "cleanup.png" : "festival.png",
+    image: row.category === "volunteering" ? "cleanup.webp" : "festival.webp",
     capacity: row.capacity,
     points: row.category === "volunteering" ? 50 : 10,
     description: row.description,
